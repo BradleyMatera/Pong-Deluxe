@@ -1,0 +1,28 @@
+:root {
+  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+  background-color: #242424;
+}
+
+body {
+  margin: 0;
+  display: flex;
+  place-items: center;
+  min-width: 320px;
+  min-height: 100vh;
+  justify-content: center;
+  background: black;
+  overflow: hidden;
+}
+
+#app {
+  margin: 0 auto;
+  position: relative;
+}
+
+canvas {
+  display: block;
+  box-shadow: 0 0 20px rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+}
