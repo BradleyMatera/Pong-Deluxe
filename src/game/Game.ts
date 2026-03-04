@@ -6,6 +6,8 @@ import { AudioManager } from './core/AudioManager';
 import { Vector2 } from './core/Vector2';
 import { GameObject } from './core/GameObject';
 
+const WINNING_SCORE = 7;
+
 export class Game {
   private canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
@@ -18,6 +20,8 @@ export class Game {
   private powerUpTimer: number = 0;
   private gameStarted: boolean = false;
   private paused: boolean = false;
+  private gameOver: boolean = false;
+  private winnerText: string = '';
 
   constructor() {
     this.canvas = document.createElement('canvas');
@@ -41,24 +45,35 @@ export class Game {
     window.addEventListener('keypress', (e) => {
       if (e.key === ' ' && !this.gameStarted) {
         this.startGame();
-      } else if (e.key === 'p') {
+      } else if (e.key === 'p' && this.gameStarted && !this.gameOver) {
         this.togglePause();
+      } else if ((e.key === 'r' || e.key === 'R') && this.gameOver) {
+        this.restartGame();
       }
     });
   }
 
   private handleKeyDown(e: KeyboardEvent) {
-    if (this.paused) return;
-    switch(e.key) {
-      case 'w': this.paddle1.velocity = -15; break;
-      case 's': this.paddle1.velocity = 15; break;
-      case 'ArrowUp': this.paddle2.velocity = -15; break;
-      case 'ArrowDown': this.paddle2.velocity = 15; break;
+    if (!this.gameStarted || this.paused || this.gameOver) return;
+
+    switch (e.key) {
+      case 'w':
+        this.paddle1.velocity = -15;
+        break;
+      case 's':
+        this.paddle1.velocity = 15;
+        break;
+      case 'ArrowUp':
+        this.paddle2.velocity = -15;
+        break;
+      case 'ArrowDown':
+        this.paddle2.velocity = 15;
+        break;
     }
   }
 
   private handleKeyUp(e: KeyboardEvent) {
-    switch(e.key) {
+    switch (e.key) {
       case 'w':
       case 's':
         this.paddle1.velocity = 0;
@@ -71,7 +86,7 @@ export class Game {
   }
 
   private spawnPowerUp() {
-    const types = Object.values(PowerUpType).filter(v => typeof v === 'number');
+    const types = Object.values(PowerUpType).filter((v) => typeof v === 'number');
     const randomType = types[Math.floor(Math.random() * types.length)] as PowerUpType;
     const x = Math.random() * 400 + 200;
     const y = Math.random() * 400 + 100;
@@ -83,15 +98,15 @@ export class Game {
     switch (powerUp.type) {
       case PowerUpType.SpeedUp:
         paddle.speedMultiplier = 1.5;
-        setTimeout(() => paddle.speedMultiplier = 1, 5000);
+        setTimeout(() => (paddle.speedMultiplier = 1), 5000);
         break;
       case PowerUpType.SizeBig:
         paddle.size.y *= 1.5;
-        setTimeout(() => paddle.size.y /= 1.5, 5000);
+        setTimeout(() => (paddle.size.y /= 1.5), 5000);
         break;
       case PowerUpType.SizeSmall:
         paddle.size.y *= 0.7;
-        setTimeout(() => paddle.size.y /= 0.7, 5000);
+        setTimeout(() => (paddle.size.y /= 0.7), 5000);
         break;
       case PowerUpType.MultiBall:
         this.balls.push(new Ball());
@@ -101,19 +116,18 @@ export class Game {
   }
 
   private checkCollisions() {
-    this.balls.forEach(ball => {
-      if (this.checkPaddleCollision(ball, this.paddle1) || 
-          this.checkPaddleCollision(ball, this.paddle2)) {
-        ball.velocity.x *= -1.1; // Increase speed slightly on paddle hit
+    this.balls.forEach((ball) => {
+      if (this.checkPaddleCollision(ball, this.paddle1) || this.checkPaddleCollision(ball, this.paddle2)) {
+        ball.velocity.x *= -1.1;
         AudioManager.getInstance().play('hit');
         this.particles.emit(ball.position, '#ffffff', 10);
       }
     });
 
-    this.powerUps = this.powerUps.filter(powerUp => {
+    this.powerUps = this.powerUps.filter((powerUp) => {
       if (!powerUp.active) return false;
-      
-      [this.paddle1, this.paddle2].forEach(paddle => {
+
+      [this.paddle1, this.paddle2].forEach((paddle) => {
         if (this.checkCollision(powerUp, paddle)) {
           this.applyPowerUp(powerUp, paddle);
           powerUp.active = false;
@@ -126,7 +140,6 @@ export class Game {
 
   private checkPaddleCollision(ball: Ball, paddle: Paddle): boolean {
     if (this.checkCollision(ball, paddle)) {
-      // Calculate angle based on where the ball hits the paddle
       const relativeY = (ball.position.y - paddle.position.y) / paddle.size.y;
       ball.velocity.y = (relativeY - 0.5) * 16;
       return true;
@@ -135,19 +148,32 @@ export class Game {
   }
 
   private checkCollision(obj1: GameObject, obj2: GameObject): boolean {
-    return obj1.position.x + obj1.size.x >= obj2.position.x &&
-           obj1.position.x <= obj2.position.x + obj2.size.x &&
-           obj1.position.y + obj1.size.y >= obj2.position.y &&
-           obj1.position.y <= obj2.position.y + obj2.size.y;
+    return (
+      obj1.position.x + obj1.size.x >= obj2.position.x &&
+      obj1.position.x <= obj2.position.x + obj2.size.x &&
+      obj1.position.y + obj1.size.y >= obj2.position.y &&
+      obj1.position.y <= obj2.position.y + obj2.size.y
+    );
+  }
+
+  private evaluateWinCondition() {
+    if (this.paddle1.score >= WINNING_SCORE || this.paddle2.score >= WINNING_SCORE) {
+      this.gameOver = true;
+      this.paused = false;
+      this.winnerText = this.paddle1.score > this.paddle2.score ? 'Player 1 Wins!' : 'Player 2 Wins!';
+      this.paddle1.velocity = 0;
+      this.paddle2.velocity = 0;
+      this.powerUps = [];
+    }
   }
 
   private update(deltaTime: number) {
-    if (!this.gameStarted || this.paused) return;
+    if (!this.gameStarted || this.paused || this.gameOver) return;
 
     this.paddle1.update(deltaTime);
     this.paddle2.update(deltaTime);
     this.particles.update(deltaTime);
-    this.powerUps.forEach(powerUp => powerUp.update(deltaTime));
+    this.powerUps.forEach((powerUp) => powerUp.update(deltaTime));
 
     this.powerUpTimer += deltaTime;
     if (this.powerUpTimer > 10) {
@@ -155,9 +181,9 @@ export class Game {
       this.spawnPowerUp();
     }
 
-    this.balls = this.balls.filter(ball => {
+    this.balls = this.balls.filter((ball) => {
       ball.update(deltaTime);
-      
+
       if (ball.position.x <= 0) {
         this.paddle2.score++;
         AudioManager.getInstance().play('score');
@@ -175,14 +201,13 @@ export class Game {
     }
 
     this.checkCollisions();
+    this.evaluateWinCondition();
   }
 
   private render() {
-    // Clear canvas
     this.ctx.fillStyle = 'black';
     this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
 
-    // Draw center line
     this.ctx.strokeStyle = 'white';
     this.ctx.setLineDash([5, 15]);
     this.ctx.beginPath();
@@ -191,19 +216,21 @@ export class Game {
     this.ctx.stroke();
     this.ctx.setLineDash([]);
 
-    // Render game objects
     this.paddle1.render(this.ctx);
     this.paddle2.render(this.ctx);
-    this.balls.forEach(ball => ball.render(this.ctx));
-    this.powerUps.forEach(powerUp => powerUp.render(this.ctx));
+    this.balls.forEach((ball) => ball.render(this.ctx));
+    this.powerUps.forEach((powerUp) => powerUp.render(this.ctx));
     this.particles.render(this.ctx);
 
-    // Render scores
     this.ctx.fillStyle = 'white';
     this.ctx.font = '48px Arial';
     this.ctx.textAlign = 'center';
     this.ctx.fillText(this.paddle1.score.toString(), 200, 50);
     this.ctx.fillText(this.paddle2.score.toString(), 600, 50);
+
+    this.ctx.font = '16px Arial';
+    this.ctx.fillStyle = 'rgba(255,255,255,0.8)';
+    this.ctx.fillText('First to 7 wins | P: Pause | R: Restart after win', 400, 580);
 
     if (this.paused) {
       this.ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
@@ -213,6 +240,17 @@ export class Game {
       this.ctx.fillText('PAUSED', 400, 300);
       this.ctx.font = '24px Arial';
       this.ctx.fillText('Press P to resume', 400, 350);
+    }
+
+    if (this.gameOver) {
+      this.ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+      this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+      this.ctx.fillStyle = '#7CFFB2';
+      this.ctx.font = '48px Arial';
+      this.ctx.fillText(this.winnerText, 400, 270);
+      this.ctx.fillStyle = 'white';
+      this.ctx.font = '24px Arial';
+      this.ctx.fillText('Press R to play again', 400, 320);
     }
   }
 
@@ -228,6 +266,7 @@ export class Game {
     this.ctx.fillText('Player 1: W/S keys', 400, 350);
     this.ctx.fillText('Player 2: Arrow Up/Down', 400, 380);
     this.ctx.fillText('P: Pause game', 400, 410);
+    this.ctx.fillText('First to 7 points wins', 400, 440);
   }
 
   private togglePause() {
@@ -235,6 +274,26 @@ export class Game {
     if (!this.paused) {
       this.lastTime = performance.now();
     }
+  }
+
+  private restartGame() {
+    this.paddle1.score = 0;
+    this.paddle2.score = 0;
+    this.paddle1.position = new Vector2(50, 250);
+    this.paddle2.position = new Vector2(740, 250);
+    this.paddle1.velocity = 0;
+    this.paddle2.velocity = 0;
+    this.paddle1.speedMultiplier = 1;
+    this.paddle2.speedMultiplier = 1;
+    this.paddle1.size.y = 100;
+    this.paddle2.size.y = 100;
+    this.balls = [new Ball()];
+    this.powerUps = [];
+    this.particles = new ParticleSystem();
+    this.powerUpTimer = 0;
+    this.gameOver = false;
+    this.winnerText = '';
+    this.lastTime = performance.now();
   }
 
   private gameLoop(currentTime: number) {
@@ -250,6 +309,7 @@ export class Game {
 
   private startGame() {
     this.gameStarted = true;
+    this.gameOver = false;
     this.lastTime = performance.now();
   }
 

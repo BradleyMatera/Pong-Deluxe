@@ -18,7 +18,6 @@ export class PowerUp extends GameObject {
   }
 
   update(deltaTime: number): void {
-    // Rotate or animate powerup
     this.position.y += Math.sin(Date.now() / 500) * deltaTime * 30;
   }
 
@@ -30,7 +29,6 @@ export class PowerUp extends GameObject {
     ctx.arc(this.position.x, this.position.y, 10, 0, Math.PI * 2);
     ctx.fill();
 
-    // Draw icon based on type
     ctx.fillStyle = 'black';
     ctx.font = '12px Arial';
     ctx.textAlign = 'center';
@@ -49,10 +47,10 @@ export class PowerUp extends GameObject {
 
   private getIcon(): string {
     switch (this.type) {
-      case PowerUpType.SpeedUp: return '⚡';
-      case PowerUpType.SizeBig: return '↕';
-      case PowerUpType.SizeSmall: return '↨';
-      case PowerUpType.MultiBall: return '●';
+      case PowerUpType.SpeedUp: return 'S';
+      case PowerUpType.SizeBig: return 'B';
+      case PowerUpType.SizeSmall: return 'N';
+      case PowerUpType.MultiBall: return 'M';
     }
   }
 }
